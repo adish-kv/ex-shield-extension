@@ -17,6 +17,18 @@ const RISK_TABLE = {
     "history":            { score: 20, level: "warn"  },
     "tabs":               { score: 15, level: "warn"  },
 };
+let autoProtect = false;
+
+const PREVENTION_MAP = {
+    "<all_urls>": "Review if this extension is necessary",
+    "webRequest": "Disable if not essential",
+    "webRequestBlocking": "Use only if you fully trust the extension",
+    "debugger": "Avoid unless absolutely required",
+    "cookies": "Limit usage on sensitive accounts",
+    "scripting": "Allow only for trusted extensions",
+    "history": "Restrict usage if privacy is a concern",
+    "tabs": "Keep only if functionality requires it"
+};
 
 let scanResults = [];
 let currentFilter = "all"; // all | high | medium | low
@@ -41,7 +53,9 @@ document.getElementById("lowCount").parentElement.addEventListener("click", () =
     currentFilter = "low";
     applyFilter();
 });
-
+document.getElementById("autoProtectToggle").addEventListener("change", (e) => {
+    autoProtect = e.target.checked;
+});
 function getRiskLevel(score) {
     if (score > 70) return "high";
     if (score > 30) return "medium";
@@ -66,6 +80,26 @@ function scanExtensions() {
             let score = 0;
             perms.forEach(p => { if (RISK_TABLE[p]) score += RISK_TABLE[p].score; });
             const risk = getRiskLevel(score);
+
+// 🛡 AUTO PROTECTION
+if (autoProtect && risk === "high") {
+    chrome.management.setEnabled(ext.id, false);
+}
+
+// 🧠 GENERATE FIX SUGGESTIONS
+let suggestions = [];
+perms.forEach(p => {
+    if (PREVENTION_MAP[p]) {
+        suggestions.push(PREVENTION_MAP[p]);
+    }
+});
+
+let suggestionHTML = suggestions.length > 0
+    ? `<div class="suggestion-box">
+         <div class="suggestion-title">Recommended Actions</div>
+         <ul>${suggestions.map(s => `<li>${s}</li>`).join("")}</ul>
+       </div>`
+    : "";
             if (risk === "high") highCount++;
             else if (risk === "medium") mediumCount++;
             else lowCount++;
@@ -112,8 +146,9 @@ function scanExtensions() {
                         <div class="score-fill fill-${risk}" style="width:0%" data-w="${barWidth}%"></div>
                     </div>
                     <span class="score-text">Score: ${score}/100</span>
-                </div>
-            `;
+               </div>
+${suggestionHTML}
+`;
             resultsDiv.appendChild(card);
             cards.push(card);
         });
